@@ -281,10 +281,8 @@ class MainApp:
 root = tk.Tk()
 app = MainApp(root)
 root.mainloop()
-print('yolo')
-print('ok')
-print('ok')
-print('ok')
+
+
 #hello
 # tab = app.main_tab
 # ref_tg = app.selected_target
