@@ -1,11 +1,13 @@
 import tkinter as tk
-from tkinter import filedialog
+from tkinter import filedialog, IntVar
 import pandas as pd
 from sqlalchemy import create_engine
 from sqlalchemy.types import Text, Float, Integer
 import numpy as np
 from openpyxl import load_workbook
-
+from sqlalchemy.ext.automap import automap_base
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy import create_engine, String, Column, Table, MetaData
 
 class MainApp:
     def file_import(self):  # funkcja importująca plik źródłowy
@@ -239,14 +241,84 @@ class MainApp:
 
     def estimate_reach(self):
 
-        def get_camp_vector():
-            ref_tg = self.selected_target
-            ref_col = 'GRP_'+ref_tg
-            tab = self.main_tab.assign(daypart=pd.cut(self.main_tab.godzina, [0, 17, 22, 29], labels=["off", "prime", "off2"]))
-            tab.daypart = tab.daypart.str.replace('off2', 'off')
-            vector = pd.pivot_table(self.main_tab, columns=['Channel', 'daypart'], values=ref_col)
+        def get_camp_vector(main_tab):
+            new_tab = main_tab.assign(daypart=pd.cut(main_tab.godzina, [0, 17, 22, 29], labels=["off", "prime", "off2"]))
+            new_tab.daypart = new_tab.daypart.str.replace('off2', 'off')
+            new_tab = new_tab.assign(temp_id=1)
+            vector = pd.pivot_table(new_tab, index='temp_id', columns=['Channel', 'daypart'], values='GRP', aggfunc='sum')
+            col_names = ['_'.join(tups) for tups in list(vector.columns)]
+            vector.columns = pd.Index(col_names)
+            ind = np.where(new_tab.columns.str.contains('^Dat|dat'))
+            new_tab.rename(columns={new_tab.columns[ind[0][0]]: 'Days'}, inplace=True)
+            days_number = pd.pivot_table(new_tab, index='temp_id', values="Days", aggfunc=pd.Series.nunique)
+            vector = pd.concat([vector, days_number], axis=1, join='outer')
+            return vector
 
-        get_camp_vector()
+        def see_available_targets():
+            base = automap_base()
+            engine = create_engine('mysql+mysqlconnector://root:nasa12crew@localhost:3306/DB_Campaigns')
+            base.prepare(engine, reflect=True)
+            campaigns = base.classes.campaigns
+            # session = Session(engine)
+            session = sessionmaker(bind=engine)()
+            # result = session.query(campaigns).all()
+            # result = [r.Days for r in session.query(campaigns).all()]
+            meta = MetaData()
+            # camps = Table('campaigns', meta, autoload=True, autoload_with=engine)
+            query = session.query(campaigns.target)
+            vectors = pd.read_sql(query.statement, query.session.bind)
+            params = vectors['target'].unique()
+            return params
+
+        def params_selecting(params):  # wybór grupy referencyjnej
+            root_d = tk.Toplevel()
+            root_d.wm_attributes('-topmost', 1)
+            lab = tk.Label(root_d, text='Select targets')
+            lab.pack()
+            var_dict = {}
+            i = 0
+            for param in params:
+                var_dict[i] = IntVar()
+                tk.Checkbutton(root_d, text=param, variable=var_dict[i]).pack()
+                i += 1
+            exit_button = tk.Button(root_d, text='Potwierdzam to', command=root_d.destroy)
+            exit_button.pack()
+            root_d.wait_window()
+            i = 0
+            selected_params = []
+            for param in params:
+                if var_dict[i].get() == 1:
+                    selected_params.append(param)
+                i += 1
+            print(selected_params)
+            return selected_params
+
+        def get_vectors_from_db(selected_params):
+            Base = automap_base()
+            engine = create_engine('mysql+mysqlconnector://root:nasa12crew@localhost:3306/DB_Campaigns')
+            Base.prepare(engine, reflect=True)
+            campaigns = Base.classes.campaigns
+            session = Session(engine)
+            session = sessionmaker(bind=engine)()
+            result = session.query(campaigns).all()
+            result = [r.Days for r in session.query(campaigns).all()]
+            targets = session.query(campaigns).filter(campaigns.target.in_(selected_params))
+            targets = session.query(campaigns).all()
+            meta = MetaData()
+            camps = Table('campaigns', meta, autoload=True, autoload_with=engine)
+            query = session.query(campaigns).filter(campaigns.target.in_(selected_params))
+            vectors = pd.read_sql(query.statement, query.session.bind)
+            # for t in targets:
+            #     print(t.target)
+            # print(len(targets.Days))
+            return vectors
+
+        self.endo_vector = get_camp_vector(self.main_tab)
+        self.params = see_available_targets()
+        self.selected_params = params_selecting(self.params)
+        self.exo_vectors = get_vectors_from_db()
+
+
         src_slownik = r"C:\Users\Michał\Documents\tabele\slownik_zw.xlsx"
         template = pd.read_excel(src_slownik, sheet_name='summary_template', header=None, index_col=0)
         wkb = load_workbook(self.lok)
@@ -262,6 +334,9 @@ class MainApp:
         self.target_list = None
         self.selected_target = None
         self.ref_tg = None
+        self.endo_vector = None
+        self.exo_vectors = None
+        self.new_tab = None
         self.window_app = tk.Frame(parent, height=600, width=600*1.618)
         self.window_app.winfo_toplevel().title("RAGE: Reach And GRP Estimator")
         self.window_app.pack()
@@ -269,7 +344,8 @@ class MainApp:
                                        activeforeground="purple1", activebackground="pale green",
                                        highlightcolor="pale green", bg='azure2')
         self.import_button.place(x=30, y=30, height=30, width = 200)
-        self.process_button = tk.Button(parent, text="Estimate Client's Target GRPs", command=self.file_export, bg='azure2')
+        self.process_button = tk.Button(parent, text="Estimate Client's Target GRPs", command=self.file_export, bg='azure2',
+                                       activeforeground="purple1", activebackground="pale green")
         self.process_button.place(x=30, y=70, height=30, width=200)
 
         self.process_button = tk.Button(parent, text="Estimate Campaign's Reach", bg='azure2', command=self.estimate_reach)
@@ -278,13 +354,11 @@ class MainApp:
         self.update_button.place(x=30, y=190, height=30, width = 200)
 
 
-root = tk.Tk()
-app = MainApp(root)
-root.mainloop()
+root_d = tk.Tk()
+app = MainApp(root_d)
+root_d.mainloop()
 
-#newcom
-#hello
-# tab = app.main_tab
+tab = app.new_tab
 # ref_tg = app.selected_target
 
 # app.path
