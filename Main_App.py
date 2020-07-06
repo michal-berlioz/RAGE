@@ -316,7 +316,7 @@ class MainApp:
         self.endo_vector = get_camp_vector(self.main_tab)
         self.params = see_available_targets()
         self.selected_params = params_selecting(self.params)
-        self.exo_vectors = get_vectors_from_db()
+        self.exo_vectors = get_vectors_from_db(self.selected_params)
 
 
         src_slownik = r"C:\Users\Michał\Documents\tabele\slownik_zw.xlsx"
@@ -354,9 +354,9 @@ class MainApp:
         self.update_button.place(x=30, y=190, height=30, width = 200)
 
 
-root_d = tk.Tk()
-app = MainApp(root_d)
-root_d.mainloop()
+root = tk.Tk()
+app = MainApp(root)
+root.mainloop()
 
 tab = app.new_tab
 # ref_tg = app.selected_target
