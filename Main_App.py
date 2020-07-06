@@ -8,6 +8,7 @@ from openpyxl import load_workbook
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy import create_engine, String, Column, Table, MetaData
+from sklearn import preprocessing, neighbors, model_selection
 
 class MainApp:
     def file_import(self):  # funkcja importująca plik źródłowy
@@ -290,7 +291,6 @@ class MainApp:
                 if var_dict[i].get() == 1:
                     selected_params.append(param)
                 i += 1
-            print(selected_params)
             return selected_params
 
         def get_vectors_from_db(selected_params):
@@ -313,10 +313,35 @@ class MainApp:
             # print(len(targets.Days))
             return vectors
 
+        def estimate_reach(ref_tg, selected_params, endo_vector, exo_vectors):
+            temp_x = exo_vectors.drop(columns=['reach_1+', 'reach_3+', 'target', 'id'])
+            endo_vector = pd.concat([temp_x, endo_vector], sort=True)
+            endo_vector = endo_vector.tail(1)
+            endo_vector = endo_vector.fillna(0)
+            reach1 = pd.DataFrame
+            reach3 = pd.DataFrame
+            x = exo_vectors.loc[exo_vectors[ref_tg].isin(ref_tg)].drop(columns=['reach_1+', 'reach_3+'])
+            for target in selected_params:
+                exo_vectors_tg = exo_vectors.loc[exo_vectors['target'].isin(target)]
+                y1 = exo_vectors_tg[['id', 'reach_1+']]
+                y2 = exo_vectors_tg[['id', 'reach_3+']]
+                
+                model_r1 = neighbors.KNeighborsRegressor(3, metric='euclidean')
+                model_r1.fit(x, y1)
+                r1 = model_r1.predict(endo_vector)
+
+                model_r3 = neighbors.KNeighborsRegressor(3, metric='euclidean')
+                model_r3.fit(x, y2)
+                r3 = model_r1.predict(endo_vector)
+                reach1.target = r1
+                reach3.target = r3
+            return reach1, reach3
+
         self.endo_vector = get_camp_vector(self.main_tab)
         self.params = see_available_targets()
         self.selected_params = params_selecting(self.params)
         self.exo_vectors = get_vectors_from_db(self.selected_params)
+        self.reach1, self.reach3 = estimate_reach(self.selected_target, self.selected_params, self.endo_vector, self.exo_vectors)
 
 
         src_slownik = r"C:\Users\Michał\Documents\tabele\slownik_zw.xlsx"
@@ -324,6 +349,8 @@ class MainApp:
         wkb = load_workbook(self.lok)
         wkb.create_sheet('Reach Estimation')
         wkb.save(self.lok)
+
+
 
 
     def __init__(self, parent):
@@ -337,6 +364,8 @@ class MainApp:
         self.endo_vector = None
         self.exo_vectors = None
         self.new_tab = None
+        self.reach1 = None
+        self.reach3 = None
         self.window_app = tk.Frame(parent, height=600, width=600*1.618)
         self.window_app.winfo_toplevel().title("RAGE: Reach And GRP Estimator")
         self.window_app.pack()
