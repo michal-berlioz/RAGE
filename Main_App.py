@@ -330,8 +330,8 @@ class MainApp:
             return exo_vectors
 
         def estimate_reach(matched_tg, endo_vectors, exo_vectors):
-            reach1 = pd.DataFrame
-            reach3 = pd.DataFrame
+            r1_dict = {}
+            r3_dict = {}
             for endo_tg, exo_tg in matched_tg.items():
                 temp_x = exo_vectors.loc[exo_vectors['target']==exo_tg]
                 x = temp_x.drop(columns=['reach_1+', 'reach_3+', 'id', 'target'])
@@ -347,10 +347,10 @@ class MainApp:
                 observed_vectors = pd.concat([x, observed_vectors], sort=True).tail(1).fillna(0)
                 r1 = model_r1.predict(observed_vectors)
                 r3 = model_r3.predict(observed_vectors)
-                reach1.assign(endo_tg=None)
-                reach3.assign(endo_tg=None)
-                reach1.endo_tg = list(r1)
-                reach3.endo_tg = list(r3)
+                r1_dict[endo_tg] = r1
+                r3_dict[endo_tg] = r3
+            reach1 = pd.DataFrame.from_dict(r1_dict)
+            reach3 = pd.DataFrame.from_dict(r3_dict)
             #
             # endo_vectors = pd.concat([temp_x, endo_vectors], sort=True)
             # endo_vectors = endo_vectors.tail(1)
