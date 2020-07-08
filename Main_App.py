@@ -146,6 +146,7 @@ class MainApp:
             vartext = tk.StringVar()
             input_window = tk.Entry(root_c, textvariable=vartext, width=50)
             input_window.pack(side="left")
+            input_window.focus()
             exit_c = tk.Button(root_c, text='OK', command=root_c.destroy)
             exit_c.pack(side="left")
             # root_c.mainloop()
@@ -238,7 +239,7 @@ class MainApp:
                 index=False,
                 dtype=types_dict
             )
-        link = r"C:\Users\Michał\Documents\tabele\training_set_2.csv"
+        link = r"C:\Users\Michał\Documents\tabele\set1.csv"
         self.vectors = csv_import(link)
         self.engine = connect_to_database()
         export_vectors_to_db(self.vectors[0], self.engine)
@@ -349,43 +350,40 @@ class MainApp:
                 r3 = model_r3.predict(observed_vectors)
                 r1_dict[endo_tg] = r1
                 r3_dict[endo_tg] = r3
-            reach1 = pd.DataFrame.from_dict(r1_dict)
-            reach3 = pd.DataFrame.from_dict(r3_dict)
-            #
-            # endo_vectors = pd.concat([temp_x, endo_vectors], sort=True)
-            # endo_vectors = endo_vectors.tail(1)
-            # endo_vectors = endo_vectors.fillna(0)
-            # reach1 = pd.DataFrame
-            # reach3 = pd.DataFrame
-            # x = exo_vectors.loc[exo_vectors[ref_tg].isin(ref_tg)].drop(columns=['reach_1+', 'reach_3+'])
-            # for target in selected_params:
-            #     exo_vectors_tg = exo_vectors.loc[exo_vectors['target'].isin(target)]
-            #     y1 = exo_vectors_tg[['id', 'reach_1+']]
-            #     y2 = exo_vectors_tg[['id', 'reach_3+']]
-            #
-            #     model_r1 = neighbors.KNeighborsRegressor(3, metric='euclidean')
-            #     model_r1.fit(x, y1)
-            #     r1 = model_r1.predict(endo_vectors)
-            #
-            #     model_r3 = neighbors.KNeighborsRegressor(3, metric='euclidean')
-            #     model_r3.fit(x, y2)
-            #     r3 = model_r1.predict(endo_vectors)
-            #     reach1.target = r1
-            #     reach3.target = r3
-            return reach1, reach3
+            reach1 = pd.DataFrame.from_dict(r1_dict).iloc[0,:]
+            reach3 = pd.DataFrame.from_dict(r3_dict).iloc[0,:]
+            print(reach1)
+            print(reach3)
+            grp_s = endo_vectors.drop(columns='Days')
+            grp_s = grp_s.sum(axis=1)
+            grp_sum = pd.DataFrame(grp_s).iloc[:,0]
+            tg_tab = self.targets_tab.iloc[0,:]
+            summary_df = pd.DataFrame({'GRP': grp_sum, 'reach% 1+': reach1, 'reach% 3+': reach3,'universe': tg_tab})
+            summary_df['GRP'] = round(summary_df['GRP'], 2).astype(float)
+            summary_df['impacts'] = round(summary_df['GRP']/100*summary_df['universe'], 0).astype(int)
+            summary_df['reach 1+'] = round(summary_df['reach% 1+']*summary_df['universe'], 0).astype(int)
+            summary_df['reach 3+'] = round(summary_df['reach% 3+'] * summary_df['universe'], 0).astype(int)
+            summary_df['OTS'] = round(summary_df['impacts']/summary_df['reach 1+'], 0).astype(int)
+            summary_df=summary_df[['GRP', 'impacts', 'reach% 1+', 'reach 1+', 'reach% 3+', 'reach 3+', 'OTS', 'universe']]
+            summary_df.style.format({'reach% 1+': '{:.2%}'.format, 'reach% 1+': '{:.2%}'.format})
+            print(summary_df)
+            return summary_df
 
         self.endo_vectors = get_camp_vectors(self.main_tab)
         self.params = see_available_targets()
         self.selected_params, self.matched_tg = params_selecting(self.params)
         self.exo_vectors = get_vectors_from_db(self.selected_params)
-        self.reach1, self.reach3 = estimate_reach(self.matched_tg, self.endo_vectors, self.exo_vectors)
+        self.summary_df = estimate_reach(self.matched_tg, self.endo_vectors, self.exo_vectors)
 
 
-        src_slownik = r"C:\Users\Michał\Documents\tabele\slownik_zw.xlsx"
-        template = pd.read_excel(src_slownik, sheet_name='summary_template', header=None, index_col=0)
         wkb = load_workbook(self.lok)
-        wkb.create_sheet('Reach Estimation')
+        wkb.create_sheet('summary_tab')
+        writer = pd.ExcelWriter(self.lok, engine='openpyxl')
+        writer.wkb = wkb
+        writer.sheets = dict((ws.title, ws) for ws in wkb.worksheets)
+        self.summary_df.to_excel(writer, sheet_name='summary_tab', float_format="%.2f")
         wkb.save(self.lok)
+
 
 
 
