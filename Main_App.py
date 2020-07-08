@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import filedialog, IntVar
+from tkinter import filedialog, IntVar, StringVar
 import pandas as pd
 from sqlalchemy import create_engine
 from sqlalchemy.types import Text, Float, Integer
@@ -34,6 +34,10 @@ class MainApp:
             main_tab.godzina = main_tab.godzina.astype(int)  # Zmiana formatu godziny
             main_tab.drop(main_tab.filter(regex='Unnamed'), axis=1, inplace=True)
             return main_tab
+
+        def get_all_targets(columns):
+            all_targets = columns[2:]
+            return all_targets
 
         def target_selecting(columns):  # wybór grupy referencyjnej
             root_b = tk.Toplevel()
@@ -155,8 +159,10 @@ class MainApp:
 
         self.main_tab = source_file_processing(self.main_tab, self.path)
         self.slownik_channels, self.slownik_grp, self.targets_tab = slownik_import()
+        self.all_targets = get_all_targets(self.slownik_grp.columns)
         self.slownik_grp, self.target_list, self.selected_target = slownik_processing(self.slownik_grp,
                                                                                       self.slownik_channels)
+
         self.main_tab = data_merging(self.main_tab, self.slownik_channels, self.slownik_grp, self.target_list,
                                      self.selected_target, self.targets_tab)
 
@@ -274,23 +280,30 @@ class MainApp:
         def params_selecting(params):  # wybór grupy referencyjnej
             root_d = tk.Toplevel()
             root_d.wm_attributes('-topmost', 1)
-            lab = tk.Label(root_d, text='Select targets')
-            lab.pack()
-            var_dict = {}
-            i = 0
-            for param in params:
-                var_dict[i] = IntVar()
-                tk.Checkbutton(root_d, text=param, variable=var_dict[i]).pack()
-                i += 1
-            exit_button = tk.Button(root_d, text='Potwierdzam to', command=root_d.destroy)
-            exit_button.pack()
+            lab = tk.Label(root_d, text='Match targets:')
+            lab.grid(row=0, column=0, columnspan=2)
+            var1_dict = {}
+            var2_dict = {}
+            for i, tg in enumerate(self.all_targets):
+                var1_dict[i] = StringVar()
+                var2_dict[i] = StringVar()
+                if i>=len(params):
+                    var2_dict[i].set(params[-1])
+                elif i<len(params):
+                    var2_dict[i].set(params[i])
+                l=tk.Label(root_d, text=tg, textvariable=tg)
+                l.grid(row=i+1, column=0, sticky='W')
+                tk.OptionMenu(root_d, var2_dict[i], *params).grid(row=i+1, column=1, sticky='W')
+            exit_button = tk.Button(root_d, text='OK', command=root_d.destroy)
+            exit_button.grid(row=i+2, column=0, columnspan=2)
             root_d.wait_window()
+
             i = 0
             selected_params = []
-            for param in params:
-                if var_dict[i].get() == 1:
-                    selected_params.append(param)
-                i += 1
+            # for param in params:
+            #     if var_dict[i].get() == 1:
+            #         selected_params.append(param)
+            #     i += 1
             return selected_params
 
         def get_vectors_from_db(selected_params):
@@ -325,7 +338,7 @@ class MainApp:
                 exo_vectors_tg = exo_vectors.loc[exo_vectors['target'].isin(target)]
                 y1 = exo_vectors_tg[['id', 'reach_1+']]
                 y2 = exo_vectors_tg[['id', 'reach_3+']]
-                
+
                 model_r1 = neighbors.KNeighborsRegressor(3, metric='euclidean')
                 model_r1.fit(x, y1)
                 r1 = model_r1.predict(endo_vector)
@@ -366,6 +379,7 @@ class MainApp:
         self.new_tab = None
         self.reach1 = None
         self.reach3 = None
+        self.all_targets = None
         self.window_app = tk.Frame(parent, height=600, width=600*1.618)
         self.window_app.winfo_toplevel().title("RAGE: Reach And GRP Estimator")
         self.window_app.pack()
