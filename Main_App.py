@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy import create_engine, String, Column, Table, MetaData
 from sklearn import preprocessing, neighbors, model_selection
 
+
 class MainApp:
     def file_import(self):  # funkcja importująca plik źródłowy
         self.path = filedialog.askopenfilename(filetypes=(
@@ -133,7 +134,9 @@ class MainApp:
                     main_tab['Channel'].map(aux_index_pd))  # braki zmapowane tabelą pomocniczą
                 main_tab[grp_col] = main_tab['GRP'] * main_tab[index_column]  # indeks * GRP grupy referencyjnej
                 main_tab.drop(columns=[index_column], inplace=True)
-                main_tab[grp_abs_col] = round(main_tab[grp_col] / 100 * targets_tab[i][0], 0).astype(int)
+                main_tab[grp_abs_col] = round(main_tab[grp_col] / 100 * targets_tab[i][0], 0)
+                main_tab = main_tab.replace(np.inf, 0)
+                main_tab[grp_abs_col] = main_tab[grp_abs_col].astype(int)
                 main_tab[grp_abs_col].fillna(0, inplace=True)
             main_tab.drop(columns='kod', inplace=True)
             return main_tab
@@ -239,7 +242,7 @@ class MainApp:
                 index=False,
                 dtype=types_dict
             )
-        link = r"C:\Users\Michał\Documents\tabele\set1.csv"
+        link = r"C:\Users\Michał\Documents\tabele\s1.csv"
         self.vectors = csv_import(link)
         self.engine = connect_to_database()
         export_vectors_to_db(self.vectors[0], self.engine)
@@ -365,7 +368,7 @@ class MainApp:
             summary_df['reach 3+'] = round(summary_df['reach% 3+'] * summary_df['universe'], 0).astype(int)
             summary_df['OTS'] = round(summary_df['impacts']/summary_df['reach 1+'], 0).astype(int)
             summary_df=summary_df[['GRP', 'impacts', 'reach% 1+', 'reach 1+', 'reach% 3+', 'reach 3+', 'OTS', 'universe']]
-            summary_df.style.format({'reach% 1+': '{:.2%}'.format, 'reach% 1+': '{:.2%}'.format})
+            # summary_df.style.format({'reach% 1+': '{:.2%}'.format, 'reach% 1+': '{:.2%}'.format})
             print(summary_df)
             return summary_df
 
@@ -381,7 +384,7 @@ class MainApp:
         writer = pd.ExcelWriter(self.lok, engine='openpyxl')
         writer.wkb = wkb
         writer.sheets = dict((ws.title, ws) for ws in wkb.worksheets)
-        self.summary_df.to_excel(writer, sheet_name='summary_tab', float_format="%.2f")
+        self.summary_df.to_excel(writer, sheet_name='summary_tab')
         wkb.save(self.lok)
 
 
