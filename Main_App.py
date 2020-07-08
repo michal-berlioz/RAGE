@@ -248,18 +248,23 @@ class MainApp:
 
     def estimate_reach(self):
 
-        def get_camp_vector(main_tab):
+        def get_camp_vectors(main_tab):
             new_tab = main_tab.assign(daypart=pd.cut(main_tab.godzina, [0, 17, 22, 29], labels=["off", "prime", "off2"]))
             new_tab.daypart = new_tab.daypart.str.replace('off2', 'off')
-            new_tab = new_tab.assign(temp_id=1)
-            vector = pd.pivot_table(new_tab, index='temp_id', columns=['Channel', 'daypart'], values='GRP', aggfunc='sum')
-            col_names = ['_'.join(tups) for tups in list(vector.columns)]
-            vector.columns = pd.Index(col_names)
+            ref_tg_grp = 'GRP_' + self.selected_target
+            new_tab.rename(columns={'GRP': ref_tg_grp}, inplace=True)
+            endo_vectors=pd.DataFrame()
+            for i, tg in enumerate(self.all_targets):
+                new_tab = new_tab.assign(target=tg)
+                temp_tg_GRP = 'GRP_'+tg
+                endo_vectors = endo_vectors.append(new_tab.pivot_table(index='target', columns=['Channel', 'daypart'], values=temp_tg_GRP, aggfunc='sum'))
+            col_names = ['_'.join(tups) for tups in list(endo_vectors.columns)]
+            endo_vectors.columns = pd.Index(col_names)
             ind = np.where(new_tab.columns.str.contains('^Dat|dat'))
             new_tab.rename(columns={new_tab.columns[ind[0][0]]: 'Days'}, inplace=True)
-            days_number = pd.pivot_table(new_tab, index='temp_id', values="Days", aggfunc=pd.Series.nunique)
-            vector = pd.concat([vector, days_number], axis=1, join='outer')
-            return vector
+            days_number = pd.pivot_table(new_tab, index='target', values="Days", aggfunc=pd.Series.nunique)
+            endo_vectors = endo_vectors.assign(Days=days_number.iloc[0,0])
+            return endo_vectors
 
         def see_available_targets():
             base = automap_base()
@@ -273,8 +278,8 @@ class MainApp:
             meta = MetaData()
             # camps = Table('campaigns', meta, autoload=True, autoload_with=engine)
             query = session.query(campaigns.target)
-            vectors = pd.read_sql(query.statement, query.session.bind)
-            params = vectors['target'].unique()
+            col_tg = pd.read_sql(query.statement, query.session.bind)
+            params = col_tg['target'].unique()
             return params
 
         def params_selecting(params):  # wybór grupy referencyjnej
@@ -320,17 +325,17 @@ class MainApp:
             meta = MetaData()
             camps = Table('campaigns', meta, autoload=True, autoload_with=engine)
             query = session.query(campaigns).filter(campaigns.target.in_(selected_params))
-            vectors = pd.read_sql(query.statement, query.session.bind)
+            exo_vectors = pd.read_sql(query.statement, query.session.bind)
             # for t in targets:
             #     print(t.target)
             # print(len(targets.Days))
-            return vectors
+            return exo_vectors
 
-        def estimate_reach(ref_tg, selected_params, endo_vector, exo_vectors):
+        def estimate_reach(ref_tg, selected_params, endo_vectors, exo_vectors):
             temp_x = exo_vectors.drop(columns=['reach_1+', 'reach_3+', 'target', 'id'])
-            endo_vector = pd.concat([temp_x, endo_vector], sort=True)
-            endo_vector = endo_vector.tail(1)
-            endo_vector = endo_vector.fillna(0)
+            endo_vectors = pd.concat([temp_x, endo_vectors], sort=True)
+            endo_vectors = endo_vectors.tail(1)
+            endo_vectors = endo_vectors.fillna(0)
             reach1 = pd.DataFrame
             reach3 = pd.DataFrame
             x = exo_vectors.loc[exo_vectors[ref_tg].isin(ref_tg)].drop(columns=['reach_1+', 'reach_3+'])
@@ -341,20 +346,20 @@ class MainApp:
 
                 model_r1 = neighbors.KNeighborsRegressor(3, metric='euclidean')
                 model_r1.fit(x, y1)
-                r1 = model_r1.predict(endo_vector)
+                r1 = model_r1.predict(endo_vectors)
 
                 model_r3 = neighbors.KNeighborsRegressor(3, metric='euclidean')
                 model_r3.fit(x, y2)
-                r3 = model_r1.predict(endo_vector)
+                r3 = model_r1.predict(endo_vectors)
                 reach1.target = r1
                 reach3.target = r3
             return reach1, reach3
 
-        self.endo_vector = get_camp_vector(self.main_tab)
+        self.endo_vectors = get_camp_vectors(self.main_tab)
         self.params = see_available_targets()
         self.selected_params = params_selecting(self.params)
-        # self.exo_vectors = get_vectors_from_db(self.selected_params)
-        # self.reach1, self.reach3 = estimate_reach(self.selected_target, self.selected_params, self.endo_vector, self.exo_vectors)
+        self.exo_vectors = get_vectors_from_db(self.selected_params)
+        # self.reach1, self.reach3 = estimate_reach(self.selected_target, self.selected_params, self.endo_vectors, self.exo_vectors)
 
 
         src_slownik = r"C:\Users\Michał\Documents\tabele\slownik_zw.xlsx"
@@ -374,7 +379,7 @@ class MainApp:
         self.target_list = None
         self.selected_target = None
         self.ref_tg = None
-        self.endo_vector = None
+        self.endo_vectors = None
         self.exo_vectors = None
         self.new_tab = None
         self.reach1 = None
