@@ -282,28 +282,28 @@ class MainApp:
             root_d.wm_attributes('-topmost', 1)
             lab = tk.Label(root_d, text='Match targets:')
             lab.grid(row=0, column=0, columnspan=2)
-            var1_dict = {}
-            var2_dict = {}
+            var_dict = {}
             for i, tg in enumerate(self.all_targets):
-                var1_dict[i] = StringVar()
-                var2_dict[i] = StringVar()
-                if i>=len(params):
-                    var2_dict[i].set(params[-1])
-                elif i<len(params):
-                    var2_dict[i].set(params[i])
+                var_dict[i] = StringVar()
+                if i >= len(params):
+                    var_dict[i].set(params[-1])
+                elif i < len(params):
+                    var_dict[i].set(params[i])
                 l=tk.Label(root_d, text=tg, textvariable=tg)
                 l.grid(row=i+1, column=0, sticky='W')
-                tk.OptionMenu(root_d, var2_dict[i], *params).grid(row=i+1, column=1, sticky='W')
+                tk.OptionMenu(root_d, var_dict[i], *params).grid(row=i+1, column=1, sticky='W')
             exit_button = tk.Button(root_d, text='OK', command=root_d.destroy)
             exit_button.grid(row=i+2, column=0, columnspan=2)
             root_d.wait_window()
 
             i = 0
+            matched_tg = {}
             selected_params = []
-            # for param in params:
-            #     if var_dict[i].get() == 1:
-            #         selected_params.append(param)
-            #     i += 1
+            for i, tg in enumerate(self.all_targets):
+                selected_params.append(var_dict[i].get())
+                matched_tg[tg] = var_dict[i].get()
+            print(selected_params)
+            print(matched_tg)
             return selected_params
 
         def get_vectors_from_db(selected_params):
@@ -353,8 +353,8 @@ class MainApp:
         self.endo_vector = get_camp_vector(self.main_tab)
         self.params = see_available_targets()
         self.selected_params = params_selecting(self.params)
-        self.exo_vectors = get_vectors_from_db(self.selected_params)
-        self.reach1, self.reach3 = estimate_reach(self.selected_target, self.selected_params, self.endo_vector, self.exo_vectors)
+        # self.exo_vectors = get_vectors_from_db(self.selected_params)
+        # self.reach1, self.reach3 = estimate_reach(self.selected_target, self.selected_params, self.endo_vector, self.exo_vectors)
 
 
         src_slownik = r"C:\Users\Michał\Documents\tabele\slownik_zw.xlsx"
