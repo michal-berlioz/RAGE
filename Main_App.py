@@ -300,8 +300,6 @@ class MainApp:
             exit_button = tk.Button(root_d, text='OK', command=root_d.destroy)
             exit_button.grid(row=i+2, column=0, columnspan=2)
             root_d.wait_window()
-
-            i = 0
             matched_tg = {}
             selected_params = []
             for i, tg in enumerate(self.all_targets):
@@ -309,7 +307,7 @@ class MainApp:
                 matched_tg[tg] = var_dict[i].get()
             print(selected_params)
             print(matched_tg)
-            return selected_params
+            return selected_params, matched_tg
 
         def get_vectors_from_db(selected_params):
             Base = automap_base()
@@ -331,35 +329,56 @@ class MainApp:
             # print(len(targets.Days))
             return exo_vectors
 
-        def estimate_reach(ref_tg, selected_params, endo_vectors, exo_vectors):
-            temp_x = exo_vectors.drop(columns=['reach_1+', 'reach_3+', 'target', 'id'])
-            endo_vectors = pd.concat([temp_x, endo_vectors], sort=True)
-            endo_vectors = endo_vectors.tail(1)
-            endo_vectors = endo_vectors.fillna(0)
+        def estimate_reach(matched_tg, endo_vectors, exo_vectors):
             reach1 = pd.DataFrame
             reach3 = pd.DataFrame
-            x = exo_vectors.loc[exo_vectors[ref_tg].isin(ref_tg)].drop(columns=['reach_1+', 'reach_3+'])
-            for target in selected_params:
-                exo_vectors_tg = exo_vectors.loc[exo_vectors['target'].isin(target)]
-                y1 = exo_vectors_tg[['id', 'reach_1+']]
-                y2 = exo_vectors_tg[['id', 'reach_3+']]
-
+            for endo_tg, exo_tg in matched_tg.items():
+                temp_x = exo_vectors.loc[exo_vectors['target']==exo_tg]
+                x = temp_x.drop(columns=['reach_1+', 'reach_3+', 'id', 'target'])
+                y1 = temp_x['reach_1+']
+                y2 = temp_x['reach_3+']
                 model_r1 = neighbors.KNeighborsRegressor(3, metric='euclidean')
-                model_r1.fit(x, y1)
-                r1 = model_r1.predict(endo_vectors)
-
                 model_r3 = neighbors.KNeighborsRegressor(3, metric='euclidean')
+                model_r1.fit(x, y1)
                 model_r3.fit(x, y2)
-                r3 = model_r1.predict(endo_vectors)
-                reach1.target = r1
-                reach3.target = r3
+                observed_vectors = endo_vectors.loc[endo_tg,:]
+                observed_vectors = pd.DataFrame(observed_vectors)
+                observed_vectors = observed_vectors.transpose()
+                observed_vectors = pd.concat([x, observed_vectors], sort=True).tail(1).fillna(0)
+                r1 = model_r1.predict(observed_vectors)
+                r3 = model_r3.predict(observed_vectors)
+                reach1.assign(endo_tg=None)
+                reach3.assign(endo_tg=None)
+                reach1.endo_tg = list(r1)
+                reach3.endo_tg = list(r3)
+            #
+            # endo_vectors = pd.concat([temp_x, endo_vectors], sort=True)
+            # endo_vectors = endo_vectors.tail(1)
+            # endo_vectors = endo_vectors.fillna(0)
+            # reach1 = pd.DataFrame
+            # reach3 = pd.DataFrame
+            # x = exo_vectors.loc[exo_vectors[ref_tg].isin(ref_tg)].drop(columns=['reach_1+', 'reach_3+'])
+            # for target in selected_params:
+            #     exo_vectors_tg = exo_vectors.loc[exo_vectors['target'].isin(target)]
+            #     y1 = exo_vectors_tg[['id', 'reach_1+']]
+            #     y2 = exo_vectors_tg[['id', 'reach_3+']]
+            #
+            #     model_r1 = neighbors.KNeighborsRegressor(3, metric='euclidean')
+            #     model_r1.fit(x, y1)
+            #     r1 = model_r1.predict(endo_vectors)
+            #
+            #     model_r3 = neighbors.KNeighborsRegressor(3, metric='euclidean')
+            #     model_r3.fit(x, y2)
+            #     r3 = model_r1.predict(endo_vectors)
+            #     reach1.target = r1
+            #     reach3.target = r3
             return reach1, reach3
 
         self.endo_vectors = get_camp_vectors(self.main_tab)
         self.params = see_available_targets()
-        self.selected_params = params_selecting(self.params)
+        self.selected_params, self.matched_tg = params_selecting(self.params)
         self.exo_vectors = get_vectors_from_db(self.selected_params)
-        # self.reach1, self.reach3 = estimate_reach(self.selected_target, self.selected_params, self.endo_vectors, self.exo_vectors)
+        self.reach1, self.reach3 = estimate_reach(self.matched_tg, self.endo_vectors, self.exo_vectors)
 
 
         src_slownik = r"C:\Users\Michał\Documents\tabele\slownik_zw.xlsx"
