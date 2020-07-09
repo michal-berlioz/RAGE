@@ -336,6 +336,7 @@ class MainApp:
         def estimate_reach(matched_tg, endo_vectors, exo_vectors):
             r1_dict = {}
             r3_dict = {}
+            scaler = preprocessing.MinMaxScaler()
             for endo_tg, exo_tg in matched_tg.items():
                 temp_x = exo_vectors.loc[exo_vectors['target']==exo_tg]
                 x = temp_x.drop(columns=['reach_1+', 'reach_3+', 'id', 'target'])
@@ -343,12 +344,14 @@ class MainApp:
                 y2 = temp_x['reach_3+']
                 model_r1 = neighbors.KNeighborsRegressor(3, metric='euclidean')
                 model_r3 = neighbors.KNeighborsRegressor(3, metric='euclidean')
+                x = scaler.fit_transform(x)
                 model_r1.fit(x, y1)
                 model_r3.fit(x, y2)
                 observed_vectors = endo_vectors.loc[endo_tg,:]
                 observed_vectors = pd.DataFrame(observed_vectors)
                 observed_vectors = observed_vectors.transpose()
                 observed_vectors = pd.concat([x, observed_vectors], sort=True).tail(1).fillna(0)
+                observed_vectors = scaler.fit_transform(observed_vectors)
                 r1 = model_r1.predict(observed_vectors)
                 r3 = model_r3.predict(observed_vectors)
                 r1_dict[endo_tg] = r1
