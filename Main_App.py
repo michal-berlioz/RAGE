@@ -1,7 +1,6 @@
 import tkinter as tk
 from tkinter import filedialog, IntVar, StringVar
 import pandas as pd
-from sqlalchemy import create_engine
 from sqlalchemy.types import Text, Float, Integer
 import numpy as np
 from openpyxl import load_workbook
@@ -9,7 +8,7 @@ from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy import create_engine, String, Column, Table, MetaData
 from sklearn import preprocessing, neighbors, model_selection
-
+from PIL import ImageTk, Image
 
 class MainApp:
     def file_import(self):  # funkcja importująca plik źródłowy
@@ -338,20 +337,23 @@ class MainApp:
             r3_dict = {}
             scaler = preprocessing.MinMaxScaler()
             for endo_tg, exo_tg in matched_tg.items():
-                temp_x = exo_vectors.loc[exo_vectors['target']==exo_tg]
+                temp_x = exo_vectors.loc[exo_vectors['target'] == exo_tg]
                 x = temp_x.drop(columns=['reach_1+', 'reach_3+', 'id', 'target'])
+                temp_cols = x.columns
                 y1 = temp_x['reach_1+']
                 y2 = temp_x['reach_3+']
                 model_r1 = neighbors.KNeighborsRegressor(3, metric='euclidean')
                 model_r3 = neighbors.KNeighborsRegressor(3, metric='euclidean')
-                x = scaler.fit_transform(x)
+                # x = scaler.fit_transform(x)
+                x = pd.DataFrame(x, columns=temp_cols)
                 model_r1.fit(x, y1)
                 model_r3.fit(x, y2)
                 observed_vectors = endo_vectors.loc[endo_tg,:]
                 observed_vectors = pd.DataFrame(observed_vectors)
                 observed_vectors = observed_vectors.transpose()
-                observed_vectors = pd.concat([x, observed_vectors], sort=True).tail(1).fillna(0)
+                observed_vectors = pd.concat([x, observed_vectors], sort=True)
                 observed_vectors = scaler.fit_transform(observed_vectors)
+                observed_vectors = pd.concat([x, observed_vectors], sort=True).tail(1).fillna(0)
                 r1 = model_r1.predict(observed_vectors)
                 r3 = model_r3.predict(observed_vectors)
                 r1_dict[endo_tg] = r1
@@ -411,6 +413,10 @@ class MainApp:
         self.window_app = tk.Frame(parent, height=600, width=600*1.618)
         self.window_app.winfo_toplevel().title("RAGE: Reach And GRP Estimator")
         self.window_app.pack()
+        self.image = Image.open("D:/python/Target_Indexing/tlo.jpg")
+        self.image = self.image.resize((100,100), Image.ANTIALIAS)
+        self.bgi = ImageTk.PhotoImage(self.image)
+        self.back = tk.Label(parent, image=self.bgi).place(x=1, y=1, relwidth=1, relheight=1)
         self.import_button = tk.Button(parent, text="Upload Your Campaign", command=self.file_import,
                                        activeforeground="purple1", activebackground="pale green",
                                        highlightcolor="pale green", bg='azure2')
@@ -423,6 +429,8 @@ class MainApp:
         self.process_button.place(x=30, y=110, height=30, width=200)
         self.update_button = tk.Button(parent, text="Update Campaigns Database", command=self.update_db, bg='sandy brown')
         self.update_button.place(x=30, y=190, height=30, width = 200)
+
+
 
 
 root = tk.Tk()
