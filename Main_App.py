@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy import create_engine, String, Column, Table, MetaData
 from sklearn import preprocessing, neighbors, model_selection
 from PIL import ImageTk, Image
+import re
 
 class MainApp:
     def file_import(self):  # funkcja importująca plik źródłowy
@@ -25,11 +26,11 @@ class MainApp:
             del main_tab
             main_tab = pd.read_excel(path, header=header_row)  # wczytuję ponownie od nienullowego wiersza
             main_tab.dropna(thresh=len(main_tab.columns) - 4, inplace=True)  # usuwam stopkę - częściowo pusty wiersz
-            ind = np.where(main_tab.columns.str.contains('^godz'))  # znalezienie indeksu nagłówka do zmiany
+            ind = np.where(main_tab.columns.str.contains('godz', regex=True, flags=re.IGNORECASE))  # znalezienie indeksu nagłówka do zmiany
             main_tab.rename(columns={main_tab.columns[ind[0][0]]: 'godzina'}, inplace=True)  # zamiany nazw nagłówków
-            ind = np.where(main_tab.columns.str.contains('^GRP|grp'))
+            ind = np.where(main_tab.columns.str.contains('GRP', regex=True, flags=re.IGNORECASE))
             main_tab.rename(columns={main_tab.columns[ind[0][0]]: 'GRP'}, inplace=True)
-            ind = np.where(main_tab.columns.str.contains('^kana'))
+            ind = np.where(main_tab.columns.str.contains('^kana', regex=True, flags=re.IGNORECASE))
             main_tab.rename(columns={main_tab.columns[ind[0][0]]: 'Channel'}, inplace=True)
             main_tab.godzina = main_tab.godzina.astype(int)  # Zmiana formatu godziny
             main_tab.drop(main_tab.filter(regex='Unnamed'), axis=1, inplace=True)
@@ -351,8 +352,7 @@ class MainApp:
                 observed_vectors = endo_vectors.loc[endo_tg,:]
                 observed_vectors = pd.DataFrame(observed_vectors)
                 observed_vectors = observed_vectors.transpose()
-                observed_vectors = pd.concat([x, observed_vectors], sort=True)
-                observed_vectors = scaler.fit_transform(observed_vectors)
+                # observed_vectors = scaler.fit_transform(observed_vectors)
                 observed_vectors = pd.concat([x, observed_vectors], sort=True).tail(1).fillna(0)
                 r1 = model_r1.predict(observed_vectors)
                 r3 = model_r3.predict(observed_vectors)
