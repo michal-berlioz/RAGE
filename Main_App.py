@@ -338,7 +338,7 @@ class MainApp:
             r3_dict = {}
             scaler = preprocessing.MinMaxScaler()
             for endo_tg, exo_tg in matched_tg.items():
-                temp_x = exo_vectors.loc[exo_vectors['target'] == exo_tg]
+                temp_x = exo_vectors.loc[exo_vectors['target'] == exo_tg].fillna(0)
                 x = temp_x.drop(columns=['reach_1+', 'reach_3+', 'id', 'target'])
                 temp_cols = x.columns
                 y1 = temp_x['reach_1+']
