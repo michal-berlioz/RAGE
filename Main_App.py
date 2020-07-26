@@ -11,13 +11,14 @@ from sklearn import preprocessing, neighbors, model_selection
 from PIL import ImageTk, Image
 import re
 
+
 class MainApp:
     def file_import(self):  # funkcja importująca plik źródłowy
         self.path = filedialog.askopenfilename(filetypes=(
             ("Excel files", ".xlsx .xls"), ("all_files", "*.*"), ("xlsx", "*.xlsx"), ("xls", "*.xls")))
         self.main_tab = pd.read_excel(self.path, header=None)
-        self.belka = tk.Label(text=f"uploaded file: {self.path}", anchor="w", bg='light yellow')
-        self.belka.place(x=260, y=30, height=30, width=500)
+        self.belka = tk.Label(text=f"uploaded file: {self.path}", anchor="w", bg='gray83')
+        self.belka.place(x=250, y=35, height=20, width=480)
 
     def file_export(self):
 
@@ -169,8 +170,8 @@ class MainApp:
                                      self.selected_target, self.targets_tab)
 
         self.lok = output_file_export(self.main_tab)
-        self.belka2 = tk.Label(text=f"exported file: {self.lok}", anchor="w", bg='light yellow')
-        self.belka2.place(x=260, y=70, height=30, width=500)
+        self.belka2 = tk.Label(text=f"exported file: {self.lok}", anchor="w", bg='gray83')
+        self.belka2.place(x=250, y=75, height=20, width=480)
 
     def update_db(self):
         def csv_import(link):
@@ -277,9 +278,9 @@ class MainApp:
             new_tab = new_tab.assign(target=tg)
             temp_tg_GRP = 'GRP_' + tg
             small_vectors = small_vectors.append(
-                new_tab.pivot_table(index='target', columns=['channel_group', 'daypart'], values=temp_tg_GRP, aggfunc='sum'))
-        col_names = ['_'.join(tups) for tups in list(small_vectors.columns)]
-        small_vectors.columns = pd.Index(col_names)
+                new_tab.pivot_table(index='target', columns=['channel_group'], values=temp_tg_GRP, aggfunc='sum'))
+        # col_names = ['_'.join(tups) for tups in list(small_vectors.columns)]
+        # small_vectors.columns = pd.Index(col_names)
         ind = np.where(new_tab.columns.str.contains('^Dat|dat'))
         new_tab.rename(columns={new_tab.columns[ind[0][0]]: 'Days'}, inplace=True)
         days_number = pd.pivot_table(new_tab, index='target', values="Days", aggfunc=pd.Series.nunique)
@@ -350,15 +351,10 @@ class MainApp:
         new_tab = pd.DataFrame()
         new_tab['id'] = exo_vectors['id']
         new_tab['target'] = exo_vectors['target']
-        new_tab['TVP_1+2_prime'] = exo_vectors['Pr1_prime'] + exo_vectors['Pr2_prime']
-        new_tab['TVP_1+2_off'] = exo_vectors['Pr1_off'] + exo_vectors['Pr2_off']
-        exo_vectors.drop(['Pr1_prime', 'Pr1_off', 'Pr2_prime', 'Pr2_off'], axis=1, inplace=True)
-        prime_exo = pd.DataFrame()
-        prime_exo = exo_vectors.loc[:, exo_vectors.columns.str.contains('prime')]
-        off_exo = pd.DataFrame()
-        off_exo = exo_vectors.loc[:, exo_vectors.columns.str.contains('off')]
-        new_tab['TVP_Tem_prime'] = prime_exo.sum(axis=1, skipna=True)
-        new_tab['TVP_Tem_off'] = off_exo.sum(axis=1, skipna=True)
+        new_tab['TVP_1+2'] = exo_vectors['Pr1_prime'] + exo_vectors['Pr2_prime'] + exo_vectors['Pr1_off']\
+                             + exo_vectors['Pr2_off']
+        new_tab['TVP_Tem']= exo_vectors.drop(['Pr1_prime', 'Pr1_off', 'Pr2_prime', 'Pr2_off', 'Days', 'id', 'reach_1+',
+                                              'reach_3+'], axis=1).sum(axis=1, skipna=True)
         new_tab['Days'] = exo_vectors['Days']
         new_tab['reach_1+'] = exo_vectors['reach_1+']
         new_tab['reach_3+'] = exo_vectors['reach_3+']
@@ -386,7 +382,8 @@ class MainApp:
             observed_vectors = pd.DataFrame(observed_vectors)
             observed_vectors = observed_vectors.transpose()
             # observed_vectors = scaler.fit_transform(observed_vectors)
-            observed_vectors = pd.concat([x, observed_vectors]).tail(1).fillna(0)
+            observed_vectors = pd.concat([x, observed_vectors])
+            observed_vectors = observed_vectors.tail(1).fillna(0)
             r1 = model_r1.predict(observed_vectors)
             r3 = model_r3.predict(observed_vectors)
             r1_dict[endo_tg] = r1
@@ -423,6 +420,8 @@ class MainApp:
         writer.sheets = dict((ws.title, ws) for ws in wkb.worksheets)
         self.summary_df.to_excel(writer, sheet_name='summary_tab')
         wkb.save(self.lok)
+        self.belka3 = tk.Label(text=f"summary saved in: {self.lok}", anchor="w", bg='gray83')
+        self.belka3.place(x=30, y=150, height=20, width=700)
 
     def estimate_reach_small(self):
         self.endo_vectors = self.get_small_vectors(self.main_tab)
@@ -437,6 +436,8 @@ class MainApp:
         writer.sheets = dict((ws.title, ws) for ws in wkb.worksheets)
         self.summary_df.to_excel(writer, sheet_name='summary_tab')
         wkb.save(self.lok)
+        self.belka4 = tk.Label(text=f"summary saved in: {self.lok}", anchor="w", bg='gray83')
+        self.belka4.place(x=30, y=150, height=20, width=700)
 
     def __init__(self, parent):
         self.path = None
@@ -452,39 +453,38 @@ class MainApp:
         self.reach1 = None
         self.reach3 = None
         self.all_targets = None
-        self.window_app = tk.Frame(parent, height=600, width=600*1.618)
+        parent.resizable(False, False)
+        self.window_app = tk.Frame(parent, height=450*1.318, width=750)
         self.window_app.winfo_toplevel().title("RAGE: Reach And GRP Estimator")
         self.window_app.pack()
         self.image = Image.open("D:/python/Target_Indexing/tlo.jpg")
-        self.image = self.image.resize((300,300), Image.ANTIALIAS)
+        self.image = self.image.resize((300, 300), Image.ANTIALIAS)
         self.bgi = ImageTk.PhotoImage(self.image)
-        self.back = tk.Label(parent, image=self.bgi).place(x=1, y=1, relwidth=1, relheight=1)
+        self.back = tk.Label(parent, image=self.bgi).place(x=1, y=40, relwidth=1, relheight=1)
         self.import_button = tk.Button(parent, text="Upload Your Campaign", command=self.file_import,
                                        activeforeground="purple1", activebackground="pale green",
-                                       highlightcolor="pale green", bg='azure2')
-        self.import_button.place(x=30, y=30, height=30, width = 200)
-        self.process_button = tk.Button(parent, text="Estimate Client's Target GRPs", command=self.file_export, bg='azure2',
+                                       highlightcolor="pale green", bg='CadetBlue2')
+        self.import_button.place(x=30, y=30, height=30, width=200)
+        self.process_button = tk.Button(parent, text="Estimate Client's Target GRPs", command=self.file_export, bg='CadetBlue2',
                                        activeforeground="purple1", activebackground="pale green")
         self.process_button.place(x=30, y=70, height=30, width=200)
 
-        self.process_button = tk.Button(parent, text="Estimate Campaign's Reach", bg='azure2', command=self.estimate_reach)
-        self.process_button.place(x=30, y=110, height=30, width=200)
+        self.reach_button = tk.Button(parent, text="Estimate Campaign's Reach", bg='SteelBlue1', command=self.estimate_reach)
+        self.reach_button.place(x=30, y=110, height=30, width=200)
 
-        self.process_button = tk.Button(parent, text="Estimate Small Campaign's Reach", bg='azure2',
+        self.small_reach_button = tk.Button(parent, text="Estimate Small Campaign's Reach", bg='SteelBlue1',
                                         command=self.estimate_reach_small)
-        self.process_button.place(x=260, y=110, height=30, width=200)
+        self.small_reach_button.place(x=260, y=110, height=30, width=200)
 
         self.update_button = tk.Button(parent, text="Update Campaigns Database", command=self.update_db, bg='sandy brown')
-        self.update_button.place(x=30, y=190, height=30, width=200)
-
-
+        self.update_button.place(x=30, y=510, height=30, width=200)
 
 
 root = tk.Tk()
 app = MainApp(root)
 root.mainloop()
 
-tab = app.new_tab
+
 # ref_tg = app.selected_target
 
 # app.path
