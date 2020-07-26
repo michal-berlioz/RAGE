@@ -159,8 +159,6 @@ class MainApp:
             tab.to_excel(link_out, index=False)
             return link_out
 
-
-
         self.main_tab = source_file_processing(self.main_tab, self.path)
         self.slownik_channels, self.slownik_grp, self.targets_tab = slownik_import()
         self.all_targets = get_all_targets(self.slownik_grp.columns)
@@ -250,140 +248,174 @@ class MainApp:
         self.belka2.place(x=260, y=190, height=30, width=500)
         self.vectors = None
 
+    def get_camp_vectors(self, main_tab):
+        new_tab = main_tab.assign(daypart=pd.cut(main_tab.godzina, [0, 17, 22, 29], labels=["off", "prime", "off2"]))
+        new_tab.daypart = new_tab.daypart.str.replace('off2', 'off')
+        ref_tg_grp = 'GRP_' + self.selected_target
+        new_tab.rename(columns={'GRP': ref_tg_grp}, inplace=True)
+        endo_vectors = pd.DataFrame()
+        for i, tg in enumerate(self.all_targets):
+            new_tab = new_tab.assign(target=tg)
+            temp_tg_GRP = 'GRP_' + tg
+            endo_vectors = endo_vectors.append(
+                new_tab.pivot_table(index='target', columns=['Channel', 'daypart'], values=temp_tg_GRP, aggfunc='sum'))
+        col_names = ['_'.join(tups) for tups in list(endo_vectors.columns)]
+        endo_vectors.columns = pd.Index(col_names)
+        ind = np.where(new_tab.columns.str.contains('^Dat|dat'))
+        new_tab.rename(columns={new_tab.columns[ind[0][0]]: 'Days'}, inplace=True)
+        days_number = pd.pivot_table(new_tab, index='target', values="Days", aggfunc=pd.Series.nunique)
+        endo_vectors = endo_vectors.assign(Days=days_number.iloc[0, 0])
+        return endo_vectors
+
+    def get_small_vectors(self, main_tab):
+        new_tab = main_tab.assign(daypart=pd.cut(main_tab.godzina, [0, 17, 22, 29], labels=["off", "prime", "off2"]))
+        new_tab.daypart = new_tab.daypart.str.replace('off2', 'off')
+        ref_tg_grp = 'GRP_' + self.selected_target
+        new_tab.rename(columns={'GRP': ref_tg_grp}, inplace=True)
+        small_vectors = pd.DataFrame()
+        for i, tg in enumerate(self.all_targets):
+            new_tab = new_tab.assign(target=tg)
+            temp_tg_GRP = 'GRP_' + tg
+            small_vectors = small_vectors.append(
+                new_tab.pivot_table(index='target', columns=['channel_group', 'daypart'], values=temp_tg_GRP, aggfunc='sum'))
+        col_names = ['_'.join(tups) for tups in list(small_vectors.columns)]
+        small_vectors.columns = pd.Index(col_names)
+        ind = np.where(new_tab.columns.str.contains('^Dat|dat'))
+        new_tab.rename(columns={new_tab.columns[ind[0][0]]: 'Days'}, inplace=True)
+        days_number = pd.pivot_table(new_tab, index='target', values="Days", aggfunc=pd.Series.nunique)
+        small_vectors = small_vectors.assign(Days=days_number.iloc[0, 0])
+        return small_vectors
+
+    def see_available_targets(self):
+        base = automap_base()
+        engine = create_engine('mysql+mysqlconnector://root:nasa12crew@localhost:3306/DB_Campaigns')
+        base.prepare(engine, reflect=True)
+        campaigns = base.classes.campaigns
+        # session = Session(engine)
+        session = sessionmaker(bind=engine)()
+        # result = session.query(campaigns).all()
+        # result = [r.Days for r in session.query(campaigns).all()]
+        meta = MetaData()
+        # camps = Table('campaigns', meta, autoload=True, autoload_with=engine)
+        query = session.query(campaigns.target)
+        col_tg = pd.read_sql(query.statement, query.session.bind)
+        params = col_tg['target'].unique()
+        return params
+
+    def params_selecting(self, params):  # wybór grupy referencyjnej
+        root_d = tk.Toplevel()
+        root_d.wm_attributes('-topmost', 1)
+        lab = tk.Label(root_d, text='Match targets:')
+        lab.grid(row=0, column=0, columnspan=2)
+        var_dict = {}
+        for i, tg in enumerate(self.all_targets):
+            var_dict[i] = StringVar()
+            if i >= len(params):
+                var_dict[i].set(params[-1])
+            elif i < len(params):
+                var_dict[i].set(params[i])
+            l = tk.Label(root_d, text=tg, textvariable=tg)
+            l.grid(row=i + 1, column=0, sticky='W')
+            tk.OptionMenu(root_d, var_dict[i], *params).grid(row=i + 1, column=1, sticky='W')
+        exit_button = tk.Button(root_d, text='OK', command=root_d.destroy)
+        exit_button.grid(row=i + 2, column=0, columnspan=2)
+        root_d.wait_window()
+        matched_tg = {}
+        selected_params = []
+        for i, tg in enumerate(self.all_targets):
+            selected_params.append(var_dict[i].get())
+            matched_tg[tg] = var_dict[i].get()
+        print(selected_params)
+        print(matched_tg)
+        return selected_params, matched_tg
+
+    def get_vectors_from_db(self, selected_params):
+        Base = automap_base()
+        engine = create_engine('mysql+mysqlconnector://root:nasa12crew@localhost:3306/DB_Campaigns')
+        Base.prepare(engine, reflect=True)
+        campaigns = Base.classes.campaigns
+        session = sessionmaker(bind=engine)()
+        query = session.query(campaigns).filter(campaigns.target.in_(selected_params))
+        exo_vectors = pd.read_sql(query.statement, query.session.bind)
+        return exo_vectors
+
+    def get_vectors_from_db_small(self, selected_params):
+        Base = automap_base()
+        engine = create_engine('mysql+mysqlconnector://root:nasa12crew@localhost:3306/DB_Campaigns')
+        Base.prepare(engine, reflect=True)
+        campaigns = Base.classes.campaigns
+        session = sessionmaker(bind=engine)()
+        query = session.query(campaigns).filter(campaigns.target.in_(selected_params))
+        exo_vectors = pd.read_sql(query.statement, query.session.bind)
+        new_tab = pd.DataFrame()
+        new_tab['id'] = exo_vectors['id']
+        new_tab['target'] = exo_vectors['target']
+        new_tab['TVP_1+2_prime'] = exo_vectors['Pr1_prime'] + exo_vectors['Pr2_prime']
+        new_tab['TVP_1+2_off'] = exo_vectors['Pr1_off'] + exo_vectors['Pr2_off']
+        exo_vectors.drop(['Pr1_prime', 'Pr1_off', 'Pr2_prime', 'Pr2_off'], axis=1, inplace=True)
+        prime_exo = pd.DataFrame()
+        prime_exo = exo_vectors.loc[:, exo_vectors.columns.str.contains('prime')]
+        off_exo = pd.DataFrame()
+        off_exo = exo_vectors.loc[:, exo_vectors.columns.str.contains('off')]
+        new_tab['TVP_Tem_prime'] = prime_exo.sum(axis=1, skipna=True)
+        new_tab['TVP_Tem_off'] = off_exo.sum(axis=1, skipna=True)
+        new_tab['Days'] = exo_vectors['Days']
+        new_tab['reach_1+'] = exo_vectors['reach_1+']
+        new_tab['reach_3+'] = exo_vectors['reach_3+']
+        exo_vectors = new_tab
+        return exo_vectors
+
+    def use_knn(self, matched_tg, endo_vectors, exo_vectors):
+        r1_dict = {}
+        r3_dict = {}
+        scaler = preprocessing.MinMaxScaler()
+        for endo_tg, exo_tg in matched_tg.items():
+            temp_x = exo_vectors.loc[exo_vectors['target'] == exo_tg].fillna(0)
+            x = temp_x.drop(columns=['reach_1+', 'reach_3+', 'id', 'target'])
+            x = x.loc[(x != 0).any(axis=1)]
+            temp_cols = x.columns
+            y1 = temp_x['reach_1+']
+            y2 = temp_x['reach_3+']
+            model_r1 = neighbors.KNeighborsRegressor(4, metric='euclidean')
+            model_r3 = neighbors.KNeighborsRegressor(4, metric='euclidean')
+            # x = scaler.fit_transform(x)
+            x = pd.DataFrame(x, columns=temp_cols)
+            model_r1.fit(x, y1)
+            model_r3.fit(x, y2)
+            observed_vectors = endo_vectors.loc[endo_tg, :]
+            observed_vectors = pd.DataFrame(observed_vectors)
+            observed_vectors = observed_vectors.transpose()
+            # observed_vectors = scaler.fit_transform(observed_vectors)
+            observed_vectors = pd.concat([x, observed_vectors], sort=True).tail(1).fillna(0)
+            r1 = model_r1.predict(observed_vectors)
+            r3 = model_r3.predict(observed_vectors)
+            r1_dict[endo_tg] = r1
+            r3_dict[endo_tg] = r3
+        reach1 = pd.DataFrame.from_dict(r1_dict).iloc[0, :]
+        reach3 = pd.DataFrame.from_dict(r3_dict).iloc[0, :]
+        print(reach1)
+        print(reach3)
+        grp_s = endo_vectors.drop(columns='Days')
+        grp_s = grp_s.sum(axis=1)
+        grp_sum = pd.DataFrame(grp_s).iloc[:, 0]
+        tg_tab = self.targets_tab.iloc[0, :]
+        summary_df = pd.DataFrame({'GRP': grp_sum, 'reach% 1+': reach1, 'reach% 3+': reach3, 'universe': tg_tab})
+        summary_df['GRP'] = round(summary_df['GRP'], 2).astype(float)
+        summary_df['impacts'] = round(summary_df['GRP'] / 100 * summary_df['universe'], 0).astype(int)
+        summary_df['reach 1+'] = round(summary_df['reach% 1+'] * summary_df['universe'], 0).astype(int)
+        summary_df['reach 3+'] = round(summary_df['reach% 3+'] * summary_df['universe'], 0).astype(int)
+        summary_df['OTS'] = round(summary_df['impacts'] / summary_df['reach 1+'], 0).astype(int)
+        summary_df = summary_df[['GRP', 'impacts', 'reach% 1+', 'reach 1+', 'reach% 3+', 'reach 3+', 'OTS', 'universe']]
+        # summary_df.style.format({'reach% 1+': '{:.2%}'.format, 'reach% 1+': '{:.2%}'.format})
+        print(summary_df)
+        return summary_df
+
     def estimate_reach(self):
-
-        def get_camp_vectors(main_tab):
-            new_tab = main_tab.assign(daypart=pd.cut(main_tab.godzina, [0, 17, 22, 29], labels=["off", "prime", "off2"]))
-            new_tab.daypart = new_tab.daypart.str.replace('off2', 'off')
-            ref_tg_grp = 'GRP_' + self.selected_target
-            new_tab.rename(columns={'GRP': ref_tg_grp}, inplace=True)
-            endo_vectors=pd.DataFrame()
-            for i, tg in enumerate(self.all_targets):
-                new_tab = new_tab.assign(target=tg)
-                temp_tg_GRP = 'GRP_'+tg
-                endo_vectors = endo_vectors.append(new_tab.pivot_table(index='target', columns=['Channel', 'daypart'], values=temp_tg_GRP, aggfunc='sum'))
-            col_names = ['_'.join(tups) for tups in list(endo_vectors.columns)]
-            endo_vectors.columns = pd.Index(col_names)
-            ind = np.where(new_tab.columns.str.contains('^Dat|dat'))
-            new_tab.rename(columns={new_tab.columns[ind[0][0]]: 'Days'}, inplace=True)
-            days_number = pd.pivot_table(new_tab, index='target', values="Days", aggfunc=pd.Series.nunique)
-            endo_vectors = endo_vectors.assign(Days=days_number.iloc[0,0])
-            return endo_vectors
-
-        def see_available_targets():
-            base = automap_base()
-            engine = create_engine('mysql+mysqlconnector://root:nasa12crew@localhost:3306/DB_Campaigns')
-            base.prepare(engine, reflect=True)
-            campaigns = base.classes.campaigns
-            # session = Session(engine)
-            session = sessionmaker(bind=engine)()
-            # result = session.query(campaigns).all()
-            # result = [r.Days for r in session.query(campaigns).all()]
-            meta = MetaData()
-            # camps = Table('campaigns', meta, autoload=True, autoload_with=engine)
-            query = session.query(campaigns.target)
-            col_tg = pd.read_sql(query.statement, query.session.bind)
-            params = col_tg['target'].unique()
-            return params
-
-        def params_selecting(params):  # wybór grupy referencyjnej
-            root_d = tk.Toplevel()
-            root_d.wm_attributes('-topmost', 1)
-            lab = tk.Label(root_d, text='Match targets:')
-            lab.grid(row=0, column=0, columnspan=2)
-            var_dict = {}
-            for i, tg in enumerate(self.all_targets):
-                var_dict[i] = StringVar()
-                if i >= len(params):
-                    var_dict[i].set(params[-1])
-                elif i < len(params):
-                    var_dict[i].set(params[i])
-                l=tk.Label(root_d, text=tg, textvariable=tg)
-                l.grid(row=i+1, column=0, sticky='W')
-                tk.OptionMenu(root_d, var_dict[i], *params).grid(row=i+1, column=1, sticky='W')
-            exit_button = tk.Button(root_d, text='OK', command=root_d.destroy)
-            exit_button.grid(row=i+2, column=0, columnspan=2)
-            root_d.wait_window()
-            matched_tg = {}
-            selected_params = []
-            for i, tg in enumerate(self.all_targets):
-                selected_params.append(var_dict[i].get())
-                matched_tg[tg] = var_dict[i].get()
-            print(selected_params)
-            print(matched_tg)
-            return selected_params, matched_tg
-
-        def get_vectors_from_db(selected_params):
-            Base = automap_base()
-            engine = create_engine('mysql+mysqlconnector://root:nasa12crew@localhost:3306/DB_Campaigns')
-            Base.prepare(engine, reflect=True)
-            campaigns = Base.classes.campaigns
-            session = Session(engine)
-            session = sessionmaker(bind=engine)()
-            result = session.query(campaigns).all()
-            result = [r.Days for r in session.query(campaigns).all()]
-            targets = session.query(campaigns).filter(campaigns.target.in_(selected_params))
-            targets = session.query(campaigns).all()
-            meta = MetaData()
-            camps = Table('campaigns', meta, autoload=True, autoload_with=engine)
-            query = session.query(campaigns).filter(campaigns.target.in_(selected_params))
-            exo_vectors = pd.read_sql(query.statement, query.session.bind)
-            # for t in targets:
-            #     print(t.target)
-            # print(len(targets.Days))
-            return exo_vectors
-
-        def estimate_reach(matched_tg, endo_vectors, exo_vectors):
-            r1_dict = {}
-            r3_dict = {}
-            scaler = preprocessing.MinMaxScaler()
-            for endo_tg, exo_tg in matched_tg.items():
-                temp_x = exo_vectors.loc[exo_vectors['target'] == exo_tg].fillna(0)
-                x = temp_x.drop(columns=['reach_1+', 'reach_3+', 'id', 'target'])
-                temp_cols = x.columns
-                y1 = temp_x['reach_1+']
-                y2 = temp_x['reach_3+']
-                model_r1 = neighbors.KNeighborsRegressor(3, metric='euclidean')
-                model_r3 = neighbors.KNeighborsRegressor(3, metric='euclidean')
-                # x = scaler.fit_transform(x)
-                x = pd.DataFrame(x, columns=temp_cols)
-                model_r1.fit(x, y1)
-                model_r3.fit(x, y2)
-                observed_vectors = endo_vectors.loc[endo_tg,:]
-                observed_vectors = pd.DataFrame(observed_vectors)
-                observed_vectors = observed_vectors.transpose()
-                # observed_vectors = scaler.fit_transform(observed_vectors)
-                observed_vectors = pd.concat([x, observed_vectors], sort=True).tail(1).fillna(0)
-                r1 = model_r1.predict(observed_vectors)
-                r3 = model_r3.predict(observed_vectors)
-                r1_dict[endo_tg] = r1
-                r3_dict[endo_tg] = r3
-            reach1 = pd.DataFrame.from_dict(r1_dict).iloc[0,:]
-            reach3 = pd.DataFrame.from_dict(r3_dict).iloc[0,:]
-            print(reach1)
-            print(reach3)
-            grp_s = endo_vectors.drop(columns='Days')
-            grp_s = grp_s.sum(axis=1)
-            grp_sum = pd.DataFrame(grp_s).iloc[:,0]
-            tg_tab = self.targets_tab.iloc[0,:]
-            summary_df = pd.DataFrame({'GRP': grp_sum, 'reach% 1+': reach1, 'reach% 3+': reach3,'universe': tg_tab})
-            summary_df['GRP'] = round(summary_df['GRP'], 2).astype(float)
-            summary_df['impacts'] = round(summary_df['GRP']/100*summary_df['universe'], 0).astype(int)
-            summary_df['reach 1+'] = round(summary_df['reach% 1+']*summary_df['universe'], 0).astype(int)
-            summary_df['reach 3+'] = round(summary_df['reach% 3+'] * summary_df['universe'], 0).astype(int)
-            summary_df['OTS'] = round(summary_df['impacts']/summary_df['reach 1+'], 0).astype(int)
-            summary_df=summary_df[['GRP', 'impacts', 'reach% 1+', 'reach 1+', 'reach% 3+', 'reach 3+', 'OTS', 'universe']]
-            # summary_df.style.format({'reach% 1+': '{:.2%}'.format, 'reach% 1+': '{:.2%}'.format})
-            print(summary_df)
-            return summary_df
-
-        self.endo_vectors = get_camp_vectors(self.main_tab)
-        self.params = see_available_targets()
-        self.selected_params, self.matched_tg = params_selecting(self.params)
-        self.exo_vectors = get_vectors_from_db(self.selected_params)
-        self.summary_df = estimate_reach(self.matched_tg, self.endo_vectors, self.exo_vectors)
-
-
+        self.endo_vectors = self.get_camp_vectors(self.main_tab)
+        self.params = self.see_available_targets()
+        self.selected_params, self.matched_tg = self.params_selecting(self.params)
+        self.exo_vectors = self.get_vectors_from_db(self.selected_params)
+        self.summary_df = self.use_knn(self.matched_tg, self.endo_vectors, self.exo_vectors)
         wkb = load_workbook(self.lok)
         wkb.create_sheet('summary_tab')
         writer = pd.ExcelWriter(self.lok, engine='openpyxl')
@@ -392,9 +424,19 @@ class MainApp:
         self.summary_df.to_excel(writer, sheet_name='summary_tab')
         wkb.save(self.lok)
 
-
-
-
+    def estimate_reach_small(self):
+        self.endo_vectors = self.get_small_vectors(self.main_tab)
+        self.params = self.see_available_targets()
+        self.selected_params, self.matched_tg = self.params_selecting(self.params)
+        self.exo_vectors = self.get_vectors_from_db_small(self.selected_params)
+        self.summary_df = self.use_knn(self.matched_tg, self.endo_vectors, self.exo_vectors)
+        wkb = load_workbook(self.lok)
+        wkb.create_sheet('summary_tab')
+        writer = pd.ExcelWriter(self.lok, engine='openpyxl')
+        writer.wkb = wkb
+        writer.sheets = dict((ws.title, ws) for ws in wkb.worksheets)
+        self.summary_df.to_excel(writer, sheet_name='summary_tab')
+        wkb.save(self.lok)
 
     def __init__(self, parent):
         self.path = None
@@ -414,7 +456,7 @@ class MainApp:
         self.window_app.winfo_toplevel().title("RAGE: Reach And GRP Estimator")
         self.window_app.pack()
         self.image = Image.open("D:/python/Target_Indexing/tlo.jpg")
-        self.image = self.image.resize((100,100), Image.ANTIALIAS)
+        self.image = self.image.resize((300,300), Image.ANTIALIAS)
         self.bgi = ImageTk.PhotoImage(self.image)
         self.back = tk.Label(parent, image=self.bgi).place(x=1, y=1, relwidth=1, relheight=1)
         self.import_button = tk.Button(parent, text="Upload Your Campaign", command=self.file_import,
@@ -427,8 +469,13 @@ class MainApp:
 
         self.process_button = tk.Button(parent, text="Estimate Campaign's Reach", bg='azure2', command=self.estimate_reach)
         self.process_button.place(x=30, y=110, height=30, width=200)
+
+        self.process_button = tk.Button(parent, text="Estimate Small Campaign's Reach", bg='azure2',
+                                        command=self.estimate_reach_small)
+        self.process_button.place(x=260, y=110, height=30, width=200)
+
         self.update_button = tk.Button(parent, text="Update Campaigns Database", command=self.update_db, bg='sandy brown')
-        self.update_button.place(x=30, y=190, height=30, width = 200)
+        self.update_button.place(x=30, y=190, height=30, width=200)
 
 
 
