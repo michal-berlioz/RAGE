@@ -381,7 +381,8 @@ class MainApp:
             observed_vectors = pd.DataFrame(observed_vectors)
             observed_vectors = observed_vectors.transpose()
             # observed_vectors = scaler.fit_transform(observed_vectors)
-            observed_vectors = pd.concat([x, observed_vectors], sort=True).tail(1).fillna(0)
+            observed_vectors = pd.concat([x, observed_vectors])
+            observed_vectors = observed_vectors.tail(1).fillna(0)
             r1 = model_r1.predict(observed_vectors)
             r3 = model_r3.predict(observed_vectors)
             r1_dict[endo_tg] = r1
