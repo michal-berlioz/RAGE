@@ -277,9 +277,9 @@ class MainApp:
             new_tab = new_tab.assign(target=tg)
             temp_tg_GRP = 'GRP_' + tg
             small_vectors = small_vectors.append(
-                new_tab.pivot_table(index='target', columns=['channel_group'], values=temp_tg_GRP, aggfunc='sum'))
-        # col_names = ['_'.join(tups) for tups in list(small_vectors.columns)]
-        # small_vectors.columns = pd.Index(col_names)
+                new_tab.pivot_table(index='target', columns=['channel_group', 'daypart'], values=temp_tg_GRP, aggfunc='sum'))
+        col_names = ['_'.join(tups) for tups in list(small_vectors.columns)]
+        small_vectors.columns = pd.Index(col_names)
         ind = np.where(new_tab.columns.str.contains('^Dat|dat'))
         new_tab.rename(columns={new_tab.columns[ind[0][0]]: 'Days'}, inplace=True)
         days_number = pd.pivot_table(new_tab, index='target', values="Days", aggfunc=pd.Series.nunique)
@@ -350,10 +350,15 @@ class MainApp:
         new_tab = pd.DataFrame()
         new_tab['id'] = exo_vectors['id']
         new_tab['target'] = exo_vectors['target']
-        new_tab['TVP_1+2'] = exo_vectors['Pr1_prime'] + exo_vectors['Pr2_prime'] + exo_vectors['Pr1_off']\
-                             + exo_vectors['Pr2_off']
-        new_tab['TVP_Tem']= exo_vectors.drop(['Pr1_prime', 'Pr1_off', 'Pr2_prime', 'Pr2_off', 'Days', 'id', 'reach_1+',
-                                              'reach_3+'], axis=1).sum(axis=1, skipna=True)
+        new_tab['TVP_1+2_prime'] = exo_vectors['Pr1_prime'] + exo_vectors['Pr2_prime']
+        new_tab['TVP_1+2_off'] = exo_vectors['Pr1_off'] + exo_vectors['Pr2_off']
+        exo_vectors.drop(['Pr1_prime', 'Pr1_off', 'Pr2_prime', 'Pr2_off'], axis=1, inplace=True)
+        prime_exo = pd.DataFrame()
+        prime_exo = exo_vectors.loc[:, exo_vectors.columns.str.contains('prime')]
+        off_exo = pd.DataFrame()
+        off_exo = exo_vectors.loc[:, exo_vectors.columns.str.contains('off')]
+        new_tab['TVP_Tem_prime'] = prime_exo.sum(axis=1, skipna=True)
+        new_tab['TVP_Tem_off'] = off_exo.sum(axis=1, skipna=True)
         new_tab['Days'] = exo_vectors['Days']
         new_tab['reach_1+'] = exo_vectors['reach_1+']
         new_tab['reach_3+'] = exo_vectors['reach_3+']
@@ -381,8 +386,7 @@ class MainApp:
             observed_vectors = pd.DataFrame(observed_vectors)
             observed_vectors = observed_vectors.transpose()
             # observed_vectors = scaler.fit_transform(observed_vectors)
-            observed_vectors = pd.concat([x, observed_vectors])
-            observed_vectors = observed_vectors.tail(1).fillna(0)
+            observed_vectors = pd.concat([x, observed_vectors]).tail(1).fillna(0)
             r1 = model_r1.predict(observed_vectors)
             r3 = model_r3.predict(observed_vectors)
             r1_dict[endo_tg] = r1
