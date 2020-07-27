@@ -246,7 +246,7 @@ class MainApp:
         self.engine = connect_to_database()
         export_vectors_to_db(self.vectors[0], self.engine)
         self.belka2 = tk.Label(text=f"added: {self.vectors[1]} rows", anchor="w", bg='light yellow')
-        self.belka2.place(x=260, y=190, height=30, width=500)
+        self.belka2.place(x=250, y=515, height=20, width=480)
         self.vectors = None
 
     def get_camp_vectors(self, main_tab):
@@ -439,6 +439,18 @@ class MainApp:
         self.belka4 = tk.Label(text=f"summary saved in: {self.lok}", anchor="w", bg='gray83')
         self.belka4.place(x=30, y=150, height=20, width=700)
 
+    def check_db(self):
+        self.params = self.see_available_targets()
+        root_e = tk.Toplevel()
+        root_e.wm_attributes('-topmost', 1)
+        lab = tk.Label(root_e, text='Available targets:')
+        lab.pack()
+        t=tk.Text(root_e)
+        for param in self.params:
+            t.insert(0.0, param + '\n')
+        t.pack()
+        root.mainloop()
+
     def __init__(self, parent):
         self.path = None
         self.main_tab = None
@@ -474,11 +486,13 @@ class MainApp:
 
         self.small_reach_button = tk.Button(parent, text="Estimate Small Campaign's Reach", bg='SteelBlue1',
                                         command=self.estimate_reach_small)
-        self.small_reach_button.place(x=260, y=110, height=30, width=200)
+        self.small_reach_button.place(x=250, y=110, height=30, width=200)
 
         self.update_button = tk.Button(parent, text="Update Campaigns Database", command=self.update_db, bg='sandy brown')
         self.update_button.place(x=30, y=510, height=30, width=200)
-
+        self.check_button = tk.Button(parent, text="See available targets in Database", command=self.check_db,
+                                       bg='sandy brown')
+        self.check_button.place(x=250, y=510, height=30, width=200)
 
 root = tk.Tk()
 app = MainApp(root)
