@@ -17,6 +17,23 @@ class MainApp:
         self.path = filedialog.askopenfilename(filetypes=(
             ("Excel files", ".xlsx .xls"), ("all_files", "*.*"), ("xlsx", "*.xlsx"), ("xls", "*.xls")))
         self.main_tab = pd.read_excel(self.path, header=None)
+        sheets = pd.ExcelFile(self.path).sheet_names
+        if len(sheets) > 1:
+            root_f = tk.Toplevel()
+            root_f.wm_attributes('-topmost', 1)
+            lab = tk.Label(root_f, text='Select sheet:')
+            lab.pack()
+            sheet_n = tk.StringVar()  # inicjalizacja zmiennej TKINTER
+            sheet_n.set(sheets[0])
+            for text in sheets:
+                tk.Radiobutton(root_f, text=text, variable=sheet_n, value=text,
+                                   command=lambda: sheet_n.set(sheet_n.get())).pack(anchor="w")
+            exit_button = tk.Button(root_f, text='ok', command=root_f.destroy)
+            exit_button.pack()
+            root_f.wait_window()
+            self.sheet_name = sheet_n.get()
+        else:
+            self.sheet_name = sheets[0]
         self.belka = tk.Label(text=f"uploaded file: {self.path}", anchor="w", bg='gray83')
         self.belka.place(x=250, y=35, height=20, width=480)
 
@@ -25,7 +42,7 @@ class MainApp:
         def source_file_processing(main_tab, path):  # obróbka pliku źródłowegoo
             header_row = main_tab[3].first_valid_index()  # znajduję pierwszy nienullowy wiersz
             del main_tab
-            main_tab = pd.read_excel(path, header=header_row)  # wczytuję ponownie od nienullowego wiersza
+            main_tab = pd.read_excel(path, header=header_row, sheet_name=self.sheet_name)  # wczytuję ponownie od nienullowego wiersza
             main_tab.dropna(thresh=len(main_tab.columns) - 4, inplace=True)  # usuwam stopkę - częściowo pusty wiersz
             ind = np.where(main_tab.columns.str.contains('godz', regex=True, flags=re.IGNORECASE))  # znalezienie indeksu nagłówka do zmiany
             main_tab.rename(columns={main_tab.columns[ind[0][0]]: 'godzina'}, inplace=True)  # zamiany nazw nagłówków
@@ -449,7 +466,7 @@ class MainApp:
         for param in self.params:
             t.insert(0.0, param + '\n')
         t.pack()
-        root.mainloop()
+        root_e.wait_window()
 
     def __init__(self, parent):
         self.path = None
