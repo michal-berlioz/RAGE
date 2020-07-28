@@ -34,6 +34,8 @@ class MainApp:
             self.sheet_name = sheet_n.get()
         else:
             self.sheet_name = sheets[0]
+
+        self.main_tab = pd.read_excel(self.path, header=None, sheet_name=self.sheet_name)
         self.belka = tk.Label(text=f"uploaded file: {self.path}", anchor="w", bg='gray83')
         self.belka.place(x=250, y=35, height=20, width=480)
 
