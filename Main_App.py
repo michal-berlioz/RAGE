@@ -264,8 +264,8 @@ class MainApp:
         self.vectors = csv_import(link)
         self.engine = connect_to_database()
         export_vectors_to_db(self.vectors[0], self.engine)
-        self.belka2 = tk.Label(text=f"added: {self.vectors[1]} rows", anchor="w", bg='light yellow')
-        self.belka2.place(x=250, y=515, height=20, width=480)
+        self.belka2 = tk.Label(text=f"added: {self.vectors[1]} rows", anchor="w", bg='gray83')
+        self.belka2.place(x=30, y=550, height=20, width=480)
         self.vectors = None
 
     def get_camp_vectors(self, main_tab):
@@ -488,10 +488,10 @@ class MainApp:
         self.window_app = tk.Frame(parent, height=450*1.318, width=750)
         self.window_app.winfo_toplevel().title("RAGE: Reach And GRP Estimator")
         self.window_app.pack()
-        self.image = Image.open("D:/python/Target_Indexing/tlo.jpg")
-        self.image = self.image.resize((300, 300), Image.ANTIALIAS)
-        self.bgi = ImageTk.PhotoImage(self.image)
-        self.back = tk.Label(parent, image=self.bgi).place(x=1, y=40, relwidth=1, relheight=1)
+        # self.image = Image.open("D:/python/Target_Indexing/tlo.jpg")
+        # self.image = self.image.resize((300, 300), Image.ANTIALIAS)
+        # self.bgi = ImageTk.PhotoImage(self.image)
+        # self.back = tk.Label(parent, image=self.bgi).place(x=1, y=40, relwidth=1, relheight=1)
         self.import_button = tk.Button(parent, text="Upload Your Campaign", command=self.file_import,
                                        activeforeground="purple1", activebackground="pale green",
                                        highlightcolor="pale green", bg='CadetBlue2')
@@ -507,7 +507,8 @@ class MainApp:
                                         command=self.estimate_reach_small)
         self.small_reach_button.place(x=250, y=110, height=30, width=200)
 
-        self.update_button = tk.Button(parent, text="Update Campaigns Database", command=self.update_db, bg='sandy brown')
+        self.update_button = tk.Button(parent, text="Update Campaigns Database", command=self.update_db, bg='sandy brown',
+                                       activebackground="SeaGreen1", activeforeground="blue")
         self.update_button.place(x=30, y=510, height=30, width=200)
         self.check_button = tk.Button(parent, text="See available targets in Database", command=self.check_db,
                                        bg='sandy brown')
